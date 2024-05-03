@@ -1,4 +1,4 @@
-# IoMBian Installed Services Handler
+# IoMBian Installed Services Downloader
 
 This service handles the firebase service installed services and updates the local iombian services accordingly.
 
