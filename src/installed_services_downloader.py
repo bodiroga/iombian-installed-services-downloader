@@ -220,8 +220,8 @@ class InstalledServicesDownloader:
         )
 
     def stop(self):
-        logger.info("Installed Services Downloader stopped.")
         """Stop the downloader by stopping the listener."""
+        logger.info("Installed Services Downloader stopped.")
         if self.watch is not None:
             self.watch.unsubscribe()
 

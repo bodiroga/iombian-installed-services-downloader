@@ -1,5 +1,6 @@
 import logging
 import os
+import signal
 
 from communication_module import CommunicationModule
 from default_firestore_client import DefaultFirestoreClient
@@ -14,6 +15,11 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)-8s - %(name)-16s - %(message)s", level=LOG_LEVEL
 )
 logger = logging.getLogger(__name__)
+
+def signal_handler(sig, frame):
+    comm_module.stop()
+    client.stop_client()
+    installed_services_downloader.stop()
 
 if __name__ == "__main__":
     comm_module = CommunicationModule(host=CONFIG_HOST, port=CONFIG_PORT)
@@ -38,3 +44,7 @@ if __name__ == "__main__":
     )
     installed_services_downloader.read_local_services()
     installed_services_downloader.start()
+
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.pause()
