@@ -142,12 +142,12 @@ class InstalledServicesDownloader:
             logger.warn(f"Invalid remote serivce {service_snapshot.id}")
             raise InvalidRemoteService
 
-        env = service_dict.get("env")
-        if env is None:
+        envs = service_dict.get("envs")
+        if envs is None:
             logger.warn(f"Invalid remote serivce {service_snapshot.id}")
             raise InvalidRemoteService
 
-        return env
+        return envs
 
     def _get_remote_compose(
         self, service_name: str, service_snapshot: DocumentSnapshot
