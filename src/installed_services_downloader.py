@@ -112,19 +112,6 @@ class InstalledServicesDownloader:
                 if "\n" in line:
                     line = line[:-1]
                 key, value = line.split("=")
-
-                if value == "true":
-                    value = True
-                elif value == "false":
-                    value = False
-                elif value.isdigit():
-                    value = int(value)
-                else:
-                    try:
-                        value = float(value)
-                    except:
-                        pass
-
                 envs[key] = value
             return envs
         except:
