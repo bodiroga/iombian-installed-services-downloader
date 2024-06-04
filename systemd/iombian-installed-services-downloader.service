@@ -1,0 +1,17 @@
+[Unit]
+Description=IoMBian Installed Services Downloader
+Requires=iombian-installed-services-handler.service
+After=iombian-installed-services-handler.service
+
+[Service]
+Type=simple
+User=iompi
+Restart=always
+RestartSec=5
+TimeoutStopSec=5
+
+WorkingDirectory=/opt/iombian-installed-services-downloader
+ExecStart=/opt/iombian-installed-services-downloader/.venv/bin/python /opt/iombian-installed-services-downloader/src/main.py
+
+[Install]
+WantedBy=multi-user.target

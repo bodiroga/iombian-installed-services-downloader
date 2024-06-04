@@ -17,6 +17,44 @@ Each document in the collection is a service, and its structure is this:
 
 When a service is added, removed or modified in the installed services, the local services are updated unless the service structure is not correct.
 
+## Installation
+
+- Define project name in an environment variable:
+
+> ```PROJECT_NAME=iombian-installed-services-downloader```
+
+- Clone the repo into a temp folder:
+
+> ```git clone https://github.com/Tknika/${PROJECT_NAME}.git /tmp/${PROJECT_NAME} && cd /tmp/${PROJECT_NAME}```
+
+- Create the installation folder and move the appropriate files (edit the user):
+
+> ```sudo mkdir /opt/${PROJECT_NAME}```
+
+> ```sudo cp requirements.txt /opt/${PROJECT_NAME}```
+
+> ```sudo cp -r src/* /opt/${PROJECT_NAME}```
+
+> ```sudo cp systemd/${PROJECT_NAME}.service /etc/systemd/system/```
+
+> ```sudo chown -R iompi:iompi /opt/${PROJECT_NAME}```
+
+- Create the virtual environment and install the dependencies:
+
+> ```cd /opt/${PROJECT_NAME}```
+
+> ```python3 -m venv .venv```
+
+> ```source .venv/bin/activate```
+
+> ```pip install --upgrade pip```
+
+> ```pip install -r requirements.txt```
+
+- Start the script
+
+> ```sudo systemctl enable ${PROJECT_NAME}.service && sudo systemctl start ${PROJECT_NAME}.service```
+
 ## Docker
 To build the docker image, from the cloned repository, execute the docker build command in the same level as the Dockerfile:
 
