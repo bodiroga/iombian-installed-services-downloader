@@ -1,12 +1,15 @@
+import logging
 import os
 import shutil
-import logging
+import threading
 from typing import Any, Dict, List, Optional, TypedDict
 
 import yaml
-from google.cloud.firestore_v1 import Client, DocumentReference, DocumentSnapshot
+from google.cloud.firestore_v1 import DocumentReference, DocumentSnapshot
 from google.cloud.firestore_v1.watch import ChangeType, DocumentChange
 from proto.datetime_helpers import DatetimeWithNanoseconds
+
+from firestore_client_handler import FirestoreClientHandler
 
 logger = logging.getLogger(__name__)
 
@@ -29,19 +32,19 @@ class InvalidRemoteService(Exception):
     """Remote service is invalid."""
 
 
-class InstalledServicesDownloader:
+class InstalledServicesDownloader(FirestoreClientHandler):
     """Service that handles the installed services of the service and updates the local iombian services accordingly.
 
-    To start the service call `read_local_services` and then `start`.
+    To start the service call `read_local_services()` and then `start()`.
     """
 
-    client: Client
-    """Firestore database client."""
+    RESTART_DELAY_TIME_S = 0.5
+
     user_id: str
     """Id of the owner of the device."""
     device_id: str
     """Id of the device."""
-    device: DocumentReference
+    device: Optional[DocumentReference]
     """Reference to the firestore document of this device."""
     services: List[str]
     """The services in the local iombian."""
@@ -49,23 +52,22 @@ class InstalledServicesDownloader:
     """The base path where the services are installed (normally "/opt/iombian-services")."""
 
     def __init__(
-        self, client: Client, user_id: str, device_id: str, base_path: str
-    ) -> None:
-        self.client = client
-        self.user_id = user_id
+        self,
+        api_key: str,
+        project_id: str,
+        refresh_token: str,
+        device_id: str,
+        base_path: str,
+    ):
+        super().__init__(api_key, project_id, refresh_token)
         self.device_id = device_id
-        self.device = (
-            client.collection("users")
-            .document(user_id)
-            .collection("devices")
-            .document(device_id)
-        )
+        self.device = None
         self.services = []
         self.base_path = base_path
 
     def _get_local_version(self, service_name: str) -> str:
         """Get the version of the local service given the service name.
-        The local service is the one installed on the iombian.
+        The local service is the one installed on the IoMBan device.
         """
         compose_path = f"{self.base_path}/{service_name}/docker-compose.yaml"
         try:
@@ -77,7 +79,7 @@ class InstalledServicesDownloader:
             ]
             return local_version
         except:
-            logger.warn(f"Invalid local serivce {service_name}")
+            logger.warning(f"Invalid local serivce {service_name}")
             raise InvalidLocalService
 
     def _get_remote_version(self, service_snapshot: DocumentSnapshot) -> str:
@@ -86,12 +88,12 @@ class InstalledServicesDownloader:
         """
         service_dict = service_snapshot.to_dict()
         if service_dict is None:
-            logger.warn(f"Invalid remote serivce {service_snapshot.id}")
+            logger.warning(f"Invalid remote serivce {service_snapshot.id}")
             raise InvalidRemoteService
 
         version = service_dict.get("version")
         if version is None:
-            logger.warn(f"Invalid remote serivce {service_snapshot.id}")
+            logger.warning(f"Invalid remote serivce {service_snapshot.id}")
             raise InvalidRemoteService
 
         return version
@@ -115,7 +117,7 @@ class InstalledServicesDownloader:
                 envs[key] = value
             return envs
         except:
-            logger.warn(f"Invalid remote serivce {service_name}")
+            logger.warning(f"Invalid remote serivce {service_name}")
             raise InvalidLocalService
 
     def _get_remote_envs(self, service_snapshot: DocumentSnapshot) -> Dict[str, Any]:
@@ -126,12 +128,12 @@ class InstalledServicesDownloader:
         """
         service_dict = service_snapshot.to_dict()
         if service_dict is None:
-            logger.warn(f"Invalid remote serivce {service_snapshot.id}")
+            logger.warning(f"Invalid remote serivce {service_snapshot.id}")
             raise InvalidRemoteService
 
         envs = service_dict.get("envs")
         if envs is None:
-            logger.warn(f"Invalid remote serivce {service_snapshot.id}")
+            logger.warning(f"Invalid remote serivce {service_snapshot.id}")
             raise InvalidRemoteService
 
         return envs
@@ -174,13 +176,17 @@ class InstalledServicesDownloader:
         logger.debug("Syncing local and remote services")
         self.services = os.listdir(self.base_path)
         for service_name in self.services:
-            service_reference = self.device.collection("installed_services").document(
-                service_name
-            )
-            service_snapshot = service_reference.get()
+            service_snapshot = None
+            if self.device:
+                service_reference = self.device.collection(
+                    "installed_services"
+                ).document(service_name)
+                service_snapshot = service_reference.get()
 
-            if service_snapshot.exists:
+            if service_snapshot and service_snapshot.exists:
                 try:
+                    logger.debug(service_name)
+                    logger.debug(service_snapshot)
                     if not self.compare(service_name, service_snapshot):
                         self.remove_service(service_name)
                         self.install_service(service_name, service_snapshot)
@@ -200,20 +206,35 @@ class InstalledServicesDownloader:
                 self.remove_service(service_name)
 
     def start(self):
-        """Start the listener, the `on_snapshot()` function, for tracking changes on firebase."""
+        """Start the Installed Services Downloader by starting the listener, syncing with the remote and starting the firestore connection."""
         logger.info("Installed Services Downloader started.")
+        self.initialize_client()
+        self.device = (
+            self.client.collection("users")
+            .document(self.user_id)
+            .collection("devices")
+            .document(self.device_id)
+        )
+        self.read_local_services()
         self.watch = self.device.collection("installed_services").on_snapshot(
             self._on_installed_service_change
         )
 
     def stop(self):
-        """Stop the downloader by stopping the listener."""
+        """Stop the downloader by stopping the listener and the firestore connection."""
         logger.info("Installed Services Downloader stopped.")
         if self.watch is not None:
             self.watch.unsubscribe()
+        self.device = None
+        self.stop_client()
+
+    def restart(self):
+        """Restart the Installed Services Downloader by calling `stop()` and `start()`."""
+        self.stop()
+        self.start()
 
     def remove_service(self, service_name: str):
-        """Given the service name, remove the service from the iombian."""
+        """Given the service name, remove the service from the IoMBian device."""
         logger.debug(f"Removing {service_name} service")
         service_path = f"{self.base_path}/{service_name}"
         try:
@@ -247,12 +268,29 @@ class InstalledServicesDownloader:
         """Return `True` if local and remote service are the same. If not return `False`."""
         remote_version = self._get_remote_version(service_snapshot)
         local_version = self._get_local_version(service_name)
+        logger.debug(f"Local version: {local_version}")
+        logger.debug(f"Remote version: {remote_version}")
         if local_version != remote_version:
             return False
 
         remote_envs = self._get_remote_envs(service_snapshot)
         local_envs = self._get_local_envs(service_name)
+        logger.debug(f"Local envs: {local_envs}")
+        logger.debug(f"Remote envs: {remote_envs}")
         return local_envs == remote_envs
+
+    def on_client_initialized(self):
+        """Callback function when the client is initialized."""
+        logger.debug("Firestore client initialized")
+
+    def on_server_not_responding(self):
+        """Callback function when the server is not responding."""
+        logger.error("Firestore server not responding")
+
+    def on_token_expired(self):
+        """Callback function when the token is expired."""
+        logger.debug("Refreshing Firebase client token id")
+        threading.Timer(self.RESTART_DELAY_TIME_S, self.restart).start()
 
     def _on_installed_service_change(
         self,

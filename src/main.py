@@ -3,7 +3,6 @@ import os
 import signal
 
 from communication_module import CommunicationModule
-from default_firestore_client import DefaultFirestoreClient
 from installed_services_downloader import InstalledServicesDownloader
 
 LOG_LEVEL = os.environ.get("LOG_LEVEL", logging.INFO)
@@ -16,10 +15,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
 def signal_handler(sig, frame):
+    logger.warn("Stopping the service")
     comm_module.stop()
-    client.stop_client()
     installed_services_downloader.stop()
+
 
 if __name__ == "__main__":
     comm_module = CommunicationModule(host=CONFIG_HOST, port=CONFIG_PORT)
@@ -31,18 +32,13 @@ if __name__ == "__main__":
     device_id = str(comm_module.execute_command("get_device_id"))
 
     if not (api_key and project_id and refresh_token and device_id):
-        exit("Wasn't able to get the necessary information from the config file handler")
-
-    client = DefaultFirestoreClient(api_key, project_id, refresh_token)
-    client.initialize_client()
-
-    if client.client is None or client.user_id is None:
-        exit("The firebase client was not created correctly")
+        exit(
+            "Wasn't able to get the necessary information from the config file handler"
+        )
 
     installed_services_downloader = InstalledServicesDownloader(
-        client.client, client.user_id, device_id, BASE_PATH
+        api_key, project_id, refresh_token, device_id, BASE_PATH
     )
-    installed_services_downloader.read_local_services()
     installed_services_downloader.start()
 
     signal.signal(signal.SIGINT, signal_handler)
