@@ -11,7 +11,7 @@ RestartSec=5
 TimeoutStopSec=15
 
 WorkingDirectory=/opt/iombian-installed-services-downloader
-ExecStart=/opt/iombian-installed-services-downloader/.venv/bin/python /opt/iombian-installed-services-downloader/src/main.py
+ExecStart=/opt/iombian-installed-services-downloader/.venv/bin/python /opt/iombian-installed-services-downloader/main.py
 
 [Install]
 WantedBy=multi-user.target
