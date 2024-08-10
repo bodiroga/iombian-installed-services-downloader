@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import logging
 import os
 import signal
@@ -17,12 +19,14 @@ logger = logging.getLogger(__name__)
 
 
 def signal_handler(sig, frame):
-    logger.warn("Stopping the service")
+    logger.info("Stopping IoMBian Installed Services Downloader Service")
     comm_module.stop()
     installed_services_downloader.stop()
 
 
 if __name__ == "__main__":
+    logger.info("Starting IoMBian Installed Services Downloader Service")
+
     comm_module = CommunicationModule(host=CONFIG_HOST, port=CONFIG_PORT)
     comm_module.start()
 
