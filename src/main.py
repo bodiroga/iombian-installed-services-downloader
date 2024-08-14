@@ -7,7 +7,7 @@ import signal
 from communication_module import CommunicationModule
 from installed_services_downloader import InstalledServicesDownloader
 
-LOG_LEVEL = os.environ.get("LOG_LEVEL", logging.INFO)
+LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
 CONFIG_HOST = os.environ.get("CONFIG_HOST", "127.0.0.1")
 CONFIG_PORT = int(os.environ.get("CONFIG_PORT", 5555))
 BASE_PATH = os.environ.get("BASE_PATH", "/opt/iombian-services")
